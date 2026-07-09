@@ -10,4 +10,4 @@ fastf1.Cache.enable_cache(CACHE_DIR)
 session = fastf1.get_session(2024, "Monaco Grand Prix", "R")
 session.load()
 
-print(session.laps.head())
+print(session.results.head())
