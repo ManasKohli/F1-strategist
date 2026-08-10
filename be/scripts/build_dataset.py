@@ -39,6 +39,77 @@ def load_race_data(race_dir: Path) -> dict:
     }
     return data
 
+def clean_lap_data(laps: pd.DataFrame) -> pd.DataFrame:
+
+    df = laps.copy()
+
+    df = df[(~df["Deleted"]) & (df["IsAccurate"])].copy()
+
+    df = df.dropna(
+        subset=["LapTime"]
+    ).copy()
+
+    df["LapTime"] = pd.to_timedelta(
+    df["LapTime"],
+    errors="coerce"
+    )
+
+    df["lap_time_seconds"] = (
+    df["LapTime"].dt.total_seconds()
+    )
+    
+    df = df.sort_values(
+        ["Driver", "LapNumber"]
+    ).reset_index(drop=True)
+
+    df["previous_lap_time"] = (
+        df.groupby("Driver")["lap_time_seconds"]
+        .shift(1)
+    )
+
+    df["avg_lap_time_3"] = (
+        df.groupby("Driver")["lap_time_seconds"]
+        .transform(
+            lambda x: x.shift(1).rolling(3).mean()
+        )
+    )
+
+    df["avg_lap_time_5"] = (
+        df.groupby("Driver")["lap_time_seconds"]
+        .transform(
+            lambda x: x.shift(1).rolling(5).mean()
+        )
+    )
+
+    # ------------------------------------------------------
+    # Tire / stint features
+    # ------------------------------------------------------
+
+    df["tyre_age"] = df["TyreLife"]
+
+    df["pit_stop_count"] = (
+    df["Stint"] - 1
+    )
+
+    # ------------------------------------------------------
+    # Rename columns to cleaner ML names
+    # ------------------------------------------------------
+
+    df = df.rename(
+        columns={
+            "Driver": "driver",
+            "Team": "team",
+            "LapNumber": "lap_number",
+            "Position": "position",
+            "Compound": "compound",
+            "FreshTyre": "fresh_tyre",
+            "Stint": "stint",
+            "TrackStatus": "track_status",
+        }
+    )
+
+    return df
+
 
 if __name__ == "__main__":
 
@@ -50,10 +121,40 @@ if __name__ == "__main__":
 
     data = load_race_data(race_dir)
 
-    for name, dataframe in data.items():
+    laps = clean_lap_data(
+        data["laps"]
+    )
 
-        print(
-            f"{name}: "
-            f"{dataframe.shape}"
-        )
-        
+    print(
+        "\nDataset shape:",
+        laps.shape
+    )
+
+    print(
+        "\nColumns:"
+    )
+
+    print(
+        laps.columns.tolist()
+    )
+
+    print(
+        "\nSample:"
+    )
+    print("\nSample:")
+
+    print(
+        laps[
+            [
+                "driver",
+                "lap_number",
+                "lap_time_seconds",
+                "previous_lap_time",
+                "avg_lap_time_3",
+                "avg_lap_time_5",
+                "tyre_age",
+                "stint",
+                "pit_stop_count",
+            ]
+        ].head(20)
+    )
