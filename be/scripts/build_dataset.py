@@ -107,54 +107,191 @@ def clean_lap_data(laps: pd.DataFrame) -> pd.DataFrame:
             "TrackStatus": "track_status",
         }
     )
+    return df
+
+def merge_weather_data(laps: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame:
+
+    df = laps.copy()
+    weather_df = weather.copy()
+
+    df["LapStartTime"] = pd.to_timedelta(
+        df["LapStartTime"],
+        errors="coerce"
+    )
+
+    weather_df["Time"] = pd.to_timedelta(
+        weather_df["Time"],
+        errors="coerce"
+    )
+
+    # Remove rows with invalid timestamps
+    df = df.dropna(
+        subset=["LapStartTime"]
+    ).copy()
+
+    weather_df = weather_df.dropna(
+        subset=["Time"]
+    ).copy()
+
+    # ------------------------------------------------------
+    # Sort before merge_asof
+    # ------------------------------------------------------
+
+    df = df.sort_values(
+        "LapStartTime"
+    )
+
+    weather_df = weather_df.sort_values(
+        "Time"
+    )
+
+    # ------------------------------------------------------
+    # Rename weather columns
+    # ------------------------------------------------------
+
+    weather_df = weather_df.rename(
+        columns={
+            "AirTemp": "air_temperature",
+            "Humidity": "humidity",
+            "Pressure": "pressure",
+            "Rainfall": "rainfall",
+            "TrackTemp": "track_temperature",
+            "WindDirection": "wind_direction",
+            "WindSpeed": "wind_speed",
+        }
+    )
+
+    # ------------------------------------------------------
+    # Time-aware merge
+    # ------------------------------------------------------
+
+    df = pd.merge_asof(
+        df,
+        weather_df[
+            [
+                "Time",
+                "air_temperature",
+                "humidity",
+                "pressure",
+                "rainfall",
+                "track_temperature",
+                "wind_direction",
+                "wind_speed",
+            ]
+        ],
+        left_on="LapStartTime",
+        right_on="Time",
+        direction="backward",
+    )
 
     return df
 
+def merge_track_status(
+    laps: pd.DataFrame,
+    track_status: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Adds time-aware race-condition features to each lap.
+    """
 
-if __name__ == "__main__":
+    df = laps.copy()
+    status_df = track_status.copy()
 
-    race_dir = (
-        RAW_DATA_DIR
-        / "2022"
-        / "Monaco_Grand_Prix"
+    # ------------------------------------------------------
+    # Convert timestamps
+    # ------------------------------------------------------
+
+    df["LapStartTime"] = pd.to_timedelta(
+        df["LapStartTime"],
+        errors="coerce"
     )
 
-    data = load_race_data(race_dir)
-
-    laps = clean_lap_data(
-        data["laps"]
+    status_df["Time"] = pd.to_timedelta(
+        status_df["Time"],
+        errors="coerce"
     )
 
-    print(
-        "\nDataset shape:",
-        laps.shape
+    df = df.dropna(
+        subset=["LapStartTime"]
+    ).copy()
+
+    status_df = status_df.dropna(
+        subset=["Time"]
+    ).copy()
+
+    # ------------------------------------------------------
+    # Sort by time
+    # ------------------------------------------------------
+
+    df = df.sort_values(
+        "LapStartTime"
     )
 
-    print(
-        "\nColumns:"
+    status_df = status_df.sort_values(
+        "Time"
     )
 
-    print(
-        laps.columns.tolist()
+    # ------------------------------------------------------
+    # Rename status message
+    # ------------------------------------------------------
+
+    status_df = status_df.rename(
+        columns={
+            "Message": "race_status"
+        }
     )
 
-    print(
-        "\nSample:"
-    )
-    print("\nSample:")
+    # ------------------------------------------------------
+    # Time-aware merge
+    # ------------------------------------------------------
 
-    print(
-        laps[
+    df = pd.merge_asof(
+        df,
+        status_df[
             [
-                "driver",
-                "lap_number",
-                "lap_time_seconds",
-                "previous_lap_time",
-                "avg_lap_time_3",
-                "avg_lap_time_5",
-                "tyre_age",
-                "stint",
-                "pit_stop_count",
+                "Time",
+                "Status",
+                "race_status",
             ]
-        ].head(20)
+        ],
+        left_on="LapStartTime",
+        right_on="Time",
+        direction="backward",
     )
+
+    # ------------------------------------------------------
+    # Convert status codes into model features
+    # ------------------------------------------------------
+
+    df["safety_car_active"] = (
+        df["Status"] == 4
+    )
+
+    df["vsc_active"] = (
+        df["Status"] == 6
+    )
+
+    df["yellow_flag"] = (
+        df["Status"] == 2
+    )
+
+    df["red_flag_active"] = (
+        df["Status"] == 5
+    )
+
+    # ------------------------------------------------------
+    # Fill missing status
+    # ------------------------------------------------------
+
+    df["Status"] = (
+        df["Status"]
+        .fillna(1)
+        .astype(int)
+    )
+
+    df["race_status"] = (
+        df["race_status"]
+        .fillna("AllClear")
+    )
+
+    return df
