@@ -295,3 +295,198 @@ def merge_track_status(
     )
 
     return df
+
+def identify_pit_laps(
+    raw_laps: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Extracts pit-in events from the raw FastF1 lap data.
+
+    Pit events are taken from the raw dataset rather than the
+    cleaned feature dataset because pit-in laps may be marked
+    as inaccurate by FastF1.
+    """
+
+    pit_events = raw_laps[
+        raw_laps["PitInTime"].notna()
+    ].copy()
+
+    pit_events = pit_events[
+        [
+            "Driver",
+            "LapNumber",
+            "PitInTime",
+            "Stint",
+        ]
+    ].copy()
+
+    pit_events = pit_events.rename(
+        columns={
+            "Driver": "driver",
+            "LapNumber": "lap_number",
+        }
+    )
+
+    pit_events["pit_lap"] = True
+
+    return pit_events
+
+def add_next_pit_lap(
+    laps: pd.DataFrame,
+    pit_events: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Adds the next known pit lap for each driver.
+
+    For every lap, finds the next pit stop that occurs
+    after the current lap.
+    """
+
+    laps = laps.copy()
+
+    pit_laps_by_driver = (
+        pit_events
+        .groupby("driver")["lap_number"]
+        .apply(list)
+        .to_dict()
+    )
+
+    def find_next_pit(row):
+        driver = row["driver"]
+        current_lap = row["lap_number"]
+
+        pit_laps = pit_laps_by_driver.get(
+            driver,
+            []
+        )
+
+        future_pits = [
+            pit_lap
+            for pit_lap in pit_laps
+            if pit_lap > current_lap
+        ]
+
+        if not future_pits:
+            return None
+
+        return min(future_pits)
+
+    laps["next_pit_lap"] = laps.apply(
+        find_next_pit,
+        axis=1
+    )
+
+    return laps
+
+def calculate_laps_until_pit(
+    laps: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Calculates the number of laps until the driver's
+    next pit stop.
+
+    This becomes the target variable for the ML model.
+    """
+
+    laps = laps.copy()
+
+    laps["laps_until_pit"] = (
+        laps["next_pit_lap"]
+        - laps["lap_number"]
+    )
+
+    return laps
+
+def remove_missing_targets(
+    laps: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Removes rows where the driver has no future pit stop.
+
+    These rows cannot be used for supervised training because
+    there is no known target value.
+    """
+
+    laps = laps.copy()
+
+    laps = laps[
+        laps["laps_until_pit"].notna()
+    ].copy()
+
+    return laps
+
+
+
+
+if __name__ == "__main__":
+
+    race_dir = (
+        RAW_DATA_DIR
+        / "2022"
+        / "Monaco_Grand_Prix"
+    )
+
+    # ======================================================
+    # Load raw race data
+    # ======================================================
+
+    data = load_race_data(
+        race_dir
+    )
+
+    # ======================================================
+    # Build clean feature dataset
+    # ======================================================
+
+    laps = clean_lap_data(
+        data["laps"]
+    )
+
+    laps = merge_weather_data(
+        laps,
+        data["weather"]
+    )
+
+    laps = merge_track_status(
+        laps,
+        data["track_status"]
+    )
+
+    # ======================================================
+    # Extract pit events from RAW data
+    # ======================================================
+    pit_events = identify_pit_laps(
+    data["laps"]
+    )
+
+    laps = add_next_pit_lap(
+        laps,
+        pit_events
+    )
+
+    laps = calculate_laps_until_pit(
+        laps
+    )
+
+    laps = remove_missing_targets(
+        laps
+    )
+
+    # Save final ML dataset
+    output_path = (
+        PROCESSED_DATA_DIR
+        / "training_dataset.csv"
+    )
+
+    laps.to_csv(
+        output_path,
+        index=False
+    )
+
+    print(
+        f"\n✓ Training dataset saved to: {output_path}"
+    )
+
+    print(
+        f"Training dataset shape: {laps.shape}"
+    )
