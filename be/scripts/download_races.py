@@ -351,11 +351,14 @@ def download_season(
         )
 
         raise
-
     for _, event in schedule.iterrows():
 
         # Skip testing events
         if event["EventFormat"] == "testing":
+            continue
+
+        # Skip events without a valid race session
+        if event["Session5"] != "Race":
             continue
 
         try:
@@ -372,7 +375,6 @@ def download_season(
             )
 
             raise
-
 
 # ==========================================================
 # Save Download Report

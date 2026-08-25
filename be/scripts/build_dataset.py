@@ -415,78 +415,238 @@ def remove_missing_targets(
 
     return laps
 
-
-
-
 if __name__ == "__main__":
 
-    race_dir = (
-        RAW_DATA_DIR
-        / "2022"
-        / "Monaco_Grand_Prix"
+    # ======================================================
+    # Seasons to process
+    # ======================================================
+
+    SEASONS = [2024, 2025]
+
+    all_races = []
+
+    # ======================================================
+    # Loop through every season
+    # ======================================================
+
+    for season in SEASONS:
+
+        season_dir = RAW_DATA_DIR / str(season)
+
+        print("\n" + "=" * 60)
+        print(f"Processing {season} season")
+        print("=" * 60)
+
+        # --------------------------------------------------
+        # Find every downloaded race
+        # --------------------------------------------------
+
+        race_directories = sorted(
+            [
+                race_dir
+                for race_dir in season_dir.iterdir()
+                if race_dir.is_dir()
+            ]
+        )
+
+        print(
+            f"Found {len(race_directories)} races"
+        )
+
+        # ==================================================
+        # Process each race
+        # ==================================================
+
+        for race_dir in race_directories:
+
+            race_name = race_dir.name
+
+            print(
+                f"\nProcessing {season} - {race_name}"
+            )
+
+            try:
+
+                # ------------------------------------------
+                # Load raw race data
+                # ------------------------------------------
+
+                data = load_race_data(
+                    race_dir
+                )
+
+                # ------------------------------------------
+                # Clean lap data
+                # ------------------------------------------
+
+                laps = clean_lap_data(
+                    data["laps"]
+                )
+
+                # ------------------------------------------
+                # Add weather
+                # ------------------------------------------
+
+                laps = merge_weather_data(
+                    laps,
+                    data["weather"]
+                )
+
+                # ------------------------------------------
+                # Add track status
+                # ------------------------------------------
+
+                laps = merge_track_status(
+                    laps,
+                    data["track_status"]
+                )
+
+                # ------------------------------------------
+                # Extract pit events from RAW laps
+                # ------------------------------------------
+
+                pit_events = identify_pit_laps(
+                    data["laps"]
+                )
+
+                # ------------------------------------------
+                # Add next pit lap
+                # ------------------------------------------
+
+                laps = add_next_pit_lap(
+                    laps,
+                    pit_events
+                )
+
+                # ------------------------------------------
+                # Calculate target
+                # ------------------------------------------
+
+                laps = calculate_laps_until_pit(
+                    laps
+                )
+
+                # ------------------------------------------
+                # Remove rows without target
+                # ------------------------------------------
+
+                laps = remove_missing_targets(
+                    laps
+                )
+
+                # ------------------------------------------
+                # Add race metadata
+                # ------------------------------------------
+
+                laps["season"] = season
+                laps["race"] = race_name
+
+                # ------------------------------------------
+                # Store race dataset
+                # ------------------------------------------
+
+                all_races.append(
+                    laps
+                )
+
+                print(
+                    f"✓ {race_name}: "
+                    f"{len(laps)} training rows"
+                )
+
+            except Exception as e:
+
+                print(
+                    f"✗ Failed {race_name}: {e}"
+                )
+
+    # ======================================================
+    # Combine all races
+    # ======================================================
+
+    print("\n" + "=" * 60)
+    print("Combining all races")
+    print("=" * 60)
+
+    if not all_races:
+
+        raise RuntimeError(
+            "No race datasets were successfully processed."
+        )
+
+    training_dataset = pd.concat(
+        all_races,
+        ignore_index=True
     )
 
     # ======================================================
-    # Load raw race data
+    # Sort dataset
     # ======================================================
 
-    data = load_race_data(
-        race_dir
-    )
-
-    # ======================================================
-    # Build clean feature dataset
-    # ======================================================
-
-    laps = clean_lap_data(
-        data["laps"]
-    )
-
-    laps = merge_weather_data(
-        laps,
-        data["weather"]
-    )
-
-    laps = merge_track_status(
-        laps,
-        data["track_status"]
+    training_dataset = training_dataset.sort_values(
+        [
+            "season",
+            "race",
+            "driver",
+            "lap_number"
+        ]
+    ).reset_index(
+        drop=True
     )
 
     # ======================================================
-    # Extract pit events from RAW data
+    # Save dataset
     # ======================================================
-    pit_events = identify_pit_laps(
-    data["laps"]
-    )
 
-    laps = add_next_pit_lap(
-        laps,
-        pit_events
-    )
-
-    laps = calculate_laps_until_pit(
-        laps
-    )
-
-    laps = remove_missing_targets(
-        laps
-    )
-
-    # Save final ML dataset
     output_path = (
         PROCESSED_DATA_DIR
         / "training_dataset.csv"
     )
 
-    laps.to_csv(
+    training_dataset.to_csv(
         output_path,
         index=False
     )
 
+    # ======================================================
+    # Final summary
+    # ======================================================
+
+    print("\n" + "=" * 60)
+    print("FINAL TRAINING DATASET")
+    print("=" * 60)
+
     print(
-        f"\n✓ Training dataset saved to: {output_path}"
+        f"Total rows: {len(training_dataset)}"
     )
 
     print(
-        f"Training dataset shape: {laps.shape}"
+        f"Total columns: "
+        f"{len(training_dataset.columns)}"
+    )
+
+    print(
+        f"Total races: "
+        f"{training_dataset[['season', 'race']].drop_duplicates().shape[0]}"
+    )
+
+    print(
+        "\nRows by season:"
+    )
+
+    print(
+        training_dataset.groupby("season").size()
+    )
+
+    print(
+        "\nTarget summary:"
+    )
+
+    print(
+        training_dataset["laps_until_pit"].describe()
+    )
+
+    print(
+        f"\n✓ Training dataset saved to:"
+        f"\n{output_path}"
     )
