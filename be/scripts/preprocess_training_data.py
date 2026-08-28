@@ -1,73 +1,128 @@
 from pathlib import Path
 
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 
 
 # ======================================================
-# Paths
+# PATHS
 # ======================================================
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-PROCESSED_DATA_DIR = BASE_DIR / "be" / "data" / "processed"
+PROCESSED_DATA_DIR = (
+    BASE_DIR
+    / "be"
+    / "data"
+    / "processed"
+)
 
-INPUT_FILE = PROCESSED_DATA_DIR / "training_dataset.csv"
-OUTPUT_FILE = PROCESSED_DATA_DIR / "model_ready_dataset.csv"
+INPUT_FILE = (
+    PROCESSED_DATA_DIR
+    / "training_dataset.csv"
+)
+
+OUTPUT_FILE = (
+    PROCESSED_DATA_DIR
+    / "model_ready_dataset.csv"
+)
 
 
 # ======================================================
-# Load dataset
+# LOAD DATASET
 # ======================================================
 
-df = pd.read_csv(INPUT_FILE)
+print("=" * 60)
+print("LOADING TRAINING DATASET")
+print("=" * 60)
 
-print("Original dataset shape:")
-print(df.shape)
+df = pd.read_csv(
+    INPUT_FILE
+)
+
+print(
+    f"Original dataset shape: "
+    f"{df.shape}"
+)
 
 
 # ======================================================
-# Target
+# TARGET
 # ======================================================
 
 TARGET = "laps_until_pit"
 
 
 # ======================================================
-# Columns that MUST NOT be used as model features
-# ======================================================
-
-FORBIDDEN_COLUMNS = [
-    "next_pit_lap",
-    "PitInTime",
-    "PitOutTime",
-]
-
-
-# ======================================================
-# Select ONLY model features
+# MODEL FEATURES
 # ======================================================
 
 MODEL_COLUMNS = [
+
+    # ----------------------------------------------
+    # Race
+    # ----------------------------------------------
+
+    "race",
+    "lap_number",
+    "total_laps",
+    "laps_remaining",
+    "race_progress",
+
+    # ----------------------------------------------
+    # Driver / team
+    # ----------------------------------------------
+
     "driver",
     "team",
-    "lap_number",
-    "stint",
     "position",
+
+    # ----------------------------------------------
+    # Strategy
+    # ----------------------------------------------
+
+    "stint",
+    "stint_laps",
     "pit_stop_count",
+
     "compound",
     "tyre_age",
     "fresh_tyre",
+
+    # ----------------------------------------------
+    # Pace
+    # ----------------------------------------------
+
     "lap_time_seconds",
     "previous_lap_time",
+
     "avg_lap_time_3",
     "avg_lap_time_5",
+    "avg_lap_time_10",
+
+    "lap_time_delta_3",
+    "lap_time_delta_5",
+
+    "pace_trend_5",
+
+    # ----------------------------------------------
+    # Weather
+    # ----------------------------------------------
+
     "air_temperature",
     "track_temperature",
     "humidity",
     "pressure",
     "rainfall",
     "wind_speed",
+
+    "air_temperature_change",
+    "track_temperature_change",
+    "humidity_change",
+
+    # ----------------------------------------------
+    # Race conditions
+    # ----------------------------------------------
+
     "safety_car_active",
     "vsc_active",
     "yellow_flag",
@@ -76,79 +131,109 @@ MODEL_COLUMNS = [
 
 
 # ======================================================
-# Safety checks
+# SAFETY CHECKS
 # ======================================================
 
 if TARGET not in df.columns:
+
     raise ValueError(
-        f"Target column '{TARGET}' not found."
+        f"Target '{TARGET}' "
+        "not found in dataset."
     )
 
+
+missing_features = [
+    column
+    for column in MODEL_COLUMNS
+    if column not in df.columns
+]
+
+
+if missing_features:
+
+    raise ValueError(
+        "\nMissing model features:\n"
+        f"{missing_features}"
+    )
+
+
+# ======================================================
+# FORBIDDEN / LEAKAGE COLUMNS
+# ======================================================
+
+FORBIDDEN_COLUMNS = [
+
+    "laps_until_pit",
+    "next_pit_lap",
+
+    "PitInTime",
+    "PitOutTime",
+
+    "pit_lap",
+]
+
+
+# ======================================================
+# CHECK LEAKAGE
+# ======================================================
 
 for column in FORBIDDEN_COLUMNS:
 
     if column in MODEL_COLUMNS:
 
         raise ValueError(
-            f"LEAKAGE ERROR: '{column}' "
-            "is being used as a model feature."
+            "\nLEAKAGE ERROR:\n"
+            f"'{column}' is being used "
+            "as a model feature."
         )
 
 
 # ======================================================
-# Create features and target
+# CREATE X / Y
 # ======================================================
 
-X = df[MODEL_COLUMNS].copy()
+X = df[
+    MODEL_COLUMNS
+].copy()
 
-y = df[TARGET].copy()
+y = df[
+    TARGET
+].copy()
 
 
 # ======================================================
-# Handle missing categorical values
+# CATEGORICAL VALUES
 # ======================================================
 
-X["compound"] = X["compound"].fillna(
-    "UNKNOWN"
+X["driver"] = (
+    X["driver"]
+    .fillna("UNKNOWN")
+)
+
+X["team"] = (
+    X["team"]
+    .fillna("UNKNOWN")
+)
+
+X["compound"] = (
+    X["compound"]
+    .fillna("UNKNOWN")
+)
+
+X["race"] = (
+    X["race"]
+    .fillna("UNKNOWN")
 )
 
 
 # ======================================================
-# Handle missing numerical values
+# BOOLEAN COLUMNS
 # ======================================================
 
-# Missing stint means the driver is at the
-# beginning of a stint.
-X["stint"] = X["stint"].fillna(1)
+BOOLEAN_COLUMNS = [
 
-
-# Missing pit stop count means no recorded
-# pit stop has occurred yet.
-X["pit_stop_count"] = X["pit_stop_count"].fillna(0)
-
-
-# Other numerical features use median imputation.
-numeric_columns = [
-    "tyre_age",
-    "previous_lap_time",
-    "avg_lap_time_3",
-    "avg_lap_time_5",
-]
-
-
-for column in numeric_columns:
-
-    X[column] = X[column].fillna(
-        X[column].median()
-    )
-
-
-# ======================================================
-# Convert boolean columns to integers
-# ======================================================
-
-boolean_columns = [
     "fresh_tyre",
+
     "safety_car_active",
     "vsc_active",
     "yellow_flag",
@@ -156,116 +241,184 @@ boolean_columns = [
 ]
 
 
-for column in boolean_columns:
+for column in BOOLEAN_COLUMNS:
 
-    X[column] = X[column].astype(int)
+    X[column] = (
+        X[column]
+        .fillna(False)
+        .astype(int)
+    )
 
 
 # ======================================================
-# Encode categorical columns
+# NUMERIC COLUMNS
 # ======================================================
 
-categorical_columns = [
-    "driver",
-    "team",
-    "compound",
+NUMERIC_COLUMNS = [
+
+    "lap_number",
+    "total_laps",
+    "laps_remaining",
+    "race_progress",
+
+    "position",
+
+    "stint",
+    "stint_laps",
+    "pit_stop_count",
+
+    "tyre_age",
+
+    "lap_time_seconds",
+    "previous_lap_time",
+
+    "avg_lap_time_3",
+    "avg_lap_time_5",
+    "avg_lap_time_10",
+
+    "lap_time_delta_3",
+    "lap_time_delta_5",
+
+    "pace_trend_5",
+
+    "air_temperature",
+    "track_temperature",
+    "humidity",
+    "pressure",
+    "rainfall",
+    "wind_speed",
+
+    "air_temperature_change",
+    "track_temperature_change",
+    "humidity_change",
 ]
 
 
-encoder = OneHotEncoder(
-    handle_unknown="ignore",
-    sparse_output=False
-)
+# ======================================================
+# CONVERT NUMERIC DATA
+# ======================================================
 
+for column in NUMERIC_COLUMNS:
 
-encoded = encoder.fit_transform(
-    X[categorical_columns]
-)
-
-
-encoded_columns = encoder.get_feature_names_out(
-    categorical_columns
-)
-
-
-encoded_df = pd.DataFrame(
-    encoded,
-    columns=encoded_columns,
-    index=X.index
-)
+    X[column] = pd.to_numeric(
+        X[column],
+        errors="coerce"
+    )
 
 
 # ======================================================
-# Remove original categorical columns
+# DO NOT MEDIAN-FILL HERE
 # ======================================================
-
-X = X.drop(
-    columns=categorical_columns
-)
-
-
+#
+# The train_model.py pipeline already has:
+#
+# SimpleImputer(strategy="median")
+#
+# so we let the training pipeline handle
+# numerical missing values.
+#
 # ======================================================
-# Combine numerical + encoded features
-# ======================================================
-
-X = pd.concat(
-    [X, encoded_df],
-    axis=1
-)
 
 
 # ======================================================
-# Add target
+# FINAL LEAKAGE CHECK
+# ======================================================
+
+remaining_forbidden = [
+    column
+    for column in FORBIDDEN_COLUMNS
+    if column in X.columns
+]
+
+
+if remaining_forbidden:
+
+    raise ValueError(
+        "\nLEAKAGE ERROR:\n"
+        f"{remaining_forbidden}"
+    )
+
+
+# ======================================================
+# COMBINE
 # ======================================================
 
 model_ready = pd.concat(
-    [X, y],
+    [
+        X,
+        y
+    ],
     axis=1
 )
 
 
 # ======================================================
-# Final leakage check
+# FINAL DIAGNOSTICS
 # ======================================================
 
-forbidden_remaining = [
-    column
-    for column in FORBIDDEN_COLUMNS
-    if column in model_ready.columns
-]
+print("\n" + "=" * 60)
+print("MODEL-READY DATASET")
+print("=" * 60)
 
+print(
+    f"Shape: "
+    f"{model_ready.shape}"
+)
 
-if forbidden_remaining:
+print(
+    f"\nFeatures: "
+    f"{len(MODEL_COLUMNS)}"
+)
 
-    raise ValueError(
-        "LEAKAGE ERROR: forbidden columns found "
-        f"in model-ready dataset: "
-        f"{forbidden_remaining}"
-    )
+print(
+    "\nCategorical features:"
+)
 
+print(
+    [
+        "race",
+        "driver",
+        "team",
+        "compound",
+    ]
+)
 
-# ======================================================
-# Final missing-value check
-# ======================================================
+print(
+    "\nTarget statistics:"
+)
 
-missing_count = model_ready.isna().sum().sum()
+print(
+    y.describe()
+)
 
+print(
+    "\nRows by season:"
+)
 
-if missing_count > 0:
+if "season" in df.columns:
 
     print(
-        "\nWARNING: Missing values remain:"
+        df.groupby("season").size()
     )
 
-    print(
-        model_ready.isna().sum()[
-            model_ready.isna().sum() > 0
-        ]
-    )
+print(
+    "\nMissing values:"
+)
 
+missing = (
+    model_ready
+    .isna()
+    .sum()
+)
+
+print(
+    missing[
+        missing > 0
+    ]
+)
 
 # ======================================================
-# Save
+# SAVE
 # ======================================================
 
 model_ready.to_csv(
@@ -273,34 +426,11 @@ model_ready.to_csv(
     index=False
 )
 
-
-# ======================================================
-# Diagnostics
-# ======================================================
-
-print("\nModel-ready dataset shape:")
-print(model_ready.shape)
-
-print("\nRemaining missing values:")
-print(missing_count)
-
-print("\nTarget:")
-print(TARGET)
-
-print("\nTarget statistics:")
-print(y.describe())
-
 print(
-    "\nForbidden columns successfully excluded:"
+    f"\n✓ Saved to:"
+    f"\n{OUTPUT_FILE}"
 )
 
-print(FORBIDDEN_COLUMNS)
-
-print("\nColumns:")
-print(model_ready.columns.tolist())
-
-print("\nFirst 5 rows:")
-print(model_ready.head())
-
-print("\nSaved to:")
-print(OUTPUT_FILE)
+print(
+    "\nPreprocessing complete."
+)
