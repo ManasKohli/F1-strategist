@@ -1,0 +1,14 @@
+.simulator-page {
+    width: min(1200px, calc(100% - 80px));
+    margin: 0 auto;
+    padding: 72px 0 56px;
+}
+
+.simulator-page h1 {
+    margin: 0;
+    color: #111111;
+    font-size: clamp(2.2rem, 4vw, 3.2rem);
+    line-height: 1.08;
+    letter-spacing: -0.06em;
+    font-weight: 700;
+}
