@@ -1,6 +1,11 @@
 from fastapi import FastAPI
+from app.routes import simulation
 
 app = FastAPI()
+
+
+#api routes
+app.include_router(simulation.router, prefix="/api")
 
 
 #startup
