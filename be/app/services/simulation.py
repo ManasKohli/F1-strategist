@@ -44,9 +44,9 @@ class SimulationService:
         features.pop("next_pit_lap", None)
         features.pop("pit_lap", None)
 
-        prediction = predictor.predict(
+        prediction = round(predictor.predict(
             features
-        ).rounnd()
+        ))
 
         predicted_pit_lap = (
             request.lap_number + prediction

@@ -17,4 +17,13 @@ class SimulationRequest(BaseModel):
     yellow_flag: bool
     red_flag_active: bool
 
+class SimulationResponse(BaseModel):
+    race: str
+    driver: str
+    current_lap: int
+    laps_until_pit: int
+    predicted_pit_lap: int
+
+    
+
 
