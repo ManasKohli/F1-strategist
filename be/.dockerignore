@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+notebooks/
+scripts/
+data/raw/
+data/cache/
+.git/
+.gitignore
+.env
