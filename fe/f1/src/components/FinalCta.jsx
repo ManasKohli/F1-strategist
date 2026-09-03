@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const FinalCta = () => {
     return (
         <section className="final-cta" id="simulator">
@@ -13,9 +15,9 @@ const FinalCta = () => {
                     </p>
                 </div>
 
-                <a href="#simulator" className="final-cta__link">
+                <Link to="/simulator" className="final-cta__link">
                     Try Simulator →
-                </a>
+                </Link>
             </div>
         </section>
     );

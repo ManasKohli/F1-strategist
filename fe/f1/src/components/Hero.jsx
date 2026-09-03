@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import TeamCarousel from "./TeamCarousel";
 
 const Hero = () => {
@@ -17,9 +18,9 @@ const Hero = () => {
                         weather, and race conditions.
                     </p>
 
-                    <a href="#simulator">
+                    <Link to="/simulator">
                         Try Simulator
-                    </a>
+                    </Link>
                 </div>
 
                 <TeamCarousel />

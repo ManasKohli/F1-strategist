@@ -26,6 +26,13 @@ const AppContent = () => {
   useEffect(() => {
     const sections = document.querySelectorAll("section, footer");
 
+    if (!("IntersectionObserver" in window)) {
+      sections.forEach((section) => {
+        section.classList.add("is-visible");
+      });
+      return undefined;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
