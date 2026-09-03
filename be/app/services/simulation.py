@@ -3,6 +3,25 @@ from app.services.data import race_data_service
 from app.services.predictor import predictor
 
 
+DRY_COMPOUNDS = {"SOFT", "MEDIUM", "HARD"}
+
+
+def get_override_laps_until_pit(request: SimulationRequest) -> int | None:
+    if request.red_flag_active or request.safety_car_active:
+        return 0
+
+    if request.vsc_active:
+        return 1
+
+    if (
+        request.compound in DRY_COMPOUNDS
+        and request.rain_condition in {"light_rain", "heavy_rain"}
+    ):
+        return 1
+
+    return None
+
+
 
 class SimulationService:
 
@@ -58,13 +77,17 @@ class SimulationService:
         features.pop("next_pit_lap", None)
         features.pop("pit_lap", None)
 
-        prediction = round(predictor.predict(
-            features
-        ))
+        override_laps_until_pit = get_override_laps_until_pit(request)
+        prediction = (
+            override_laps_until_pit
+            if override_laps_until_pit is not None
+            else round(predictor.predict(features))
+        )
 
         remaining_laps = total_laps - request.lap_number
-        laps_until_pit = min(max(0, round(prediction)), remaining_laps)
+        laps_until_pit = min(max(0, prediction), remaining_laps)
         predicted_pit_lap = request.lap_number + laps_until_pit
+        should_pit = predicted_pit_lap < total_laps
 
         return {
             "race": request.race,
@@ -73,7 +96,8 @@ class SimulationService:
             "laps_until_pit": laps_until_pit,
             "predicted_pit_lap": predicted_pit_lap,
             "total_laps": total_laps,
-            "pit_before_finish": predicted_pit_lap < total_laps,
+            "should_pit": should_pit,
+            "pit_before_finish": should_pit,
         }
 
 

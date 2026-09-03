@@ -28,6 +28,7 @@ class SimulationResponse(BaseModel):
     laps_until_pit: int
     predicted_pit_lap: int
     total_laps: int
+    should_pit: bool
     pit_before_finish: bool
 
     

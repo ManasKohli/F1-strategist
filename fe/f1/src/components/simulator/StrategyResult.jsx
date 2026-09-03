@@ -43,10 +43,18 @@ const StrategyResult = ({ result, formData, loading, error }) => {
       </div>
 
       <div className="prediction-block">
-        <p className="result-label">PREDICTED PIT LAP</p>
+        <p className="result-label">
+          {simulationResult.should_pit ? "PREDICTED PIT LAP" : "PIT STOP DECISION"}
+        </p>
         <div className="pit-lap">
-          <span>Lap</span>
-          <strong>{simulationResult.predicted_pit_lap}</strong>
+          {simulationResult.should_pit ? (
+            <>
+              <span>Lap</span>
+              <strong>{simulationResult.predicted_pit_lap}</strong>
+            </>
+          ) : (
+            <strong>NO STOP</strong>
+          )}
         </div>
       </div>
 
