@@ -56,7 +56,9 @@ const RaceStateForm = ({ formData, onChange, availableDrivers = driverDirectory 
             name="driver"
             value={formData.driver}
             onChange={onChange}
+            disabled={availableDrivers.length === 0}
           >
+            {availableDrivers.length === 0 && <option value="">No drivers found</option>}
             {availableDrivers.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

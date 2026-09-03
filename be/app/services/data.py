@@ -36,10 +36,17 @@ class RaceDataService:
         ]
 
         if matches.empty:
-            raise ValueError(
-                "No race data found for "
-                f"{driver} at {race}, lap {lap_number}."
-            )
+            earlier_matches = self.data[
+                (self.data["race"] == race)
+                & (self.data["driver"] == driver)
+                & (self.data["lap_number"] < lap_number)
+            ]
+            if earlier_matches.empty:
+                raise ValueError(
+                    "No race data found for "
+                    f"{driver} at {race}, lap {lap_number}."
+                )
+            matches = earlier_matches.sort_values("lap_number").tail(1)
 
         row = matches.iloc[0]
 

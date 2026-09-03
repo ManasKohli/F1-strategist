@@ -247,6 +247,17 @@
   cursor: wait;
 }
 
+.form-help {
+  margin: 12px 0 0;
+  color: #6b6b66;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form-help--error {
+  color: #a33b2f;
+}
+
 .result-empty {
   min-height: 480px;
   display: flex;

@@ -53,7 +53,7 @@ const StrategyResult = ({ result, formData, loading, error }) => {
       <StrategyTimeline
         currentLap={simulationResult.current_lap}
         predictedPitLap={simulationResult.predicted_pit_lap}
-        totalLaps={78}
+        totalLaps={simulationResult.total_laps}
       />
 
       <div className="result-stats">
@@ -77,11 +77,20 @@ const StrategyResult = ({ result, formData, loading, error }) => {
 
       <div className="strategy-message">
         <p className="panel-label">STRATEGY CALL</p>
-        <h3>PIT AROUND LAP {simulationResult.predicted_pit_lap}</h3>
-        <p>
-          The model predicts the next pit stop in approximately {" "}
-          <strong>{simulationResult.laps_until_pit}</strong> laps.
-        </p>
+        {simulationResult.pit_before_finish ? (
+          <>
+            <h3>PIT AROUND LAP {simulationResult.predicted_pit_lap}</h3>
+            <p>
+              The model predicts the next pit stop in approximately {" "}
+              <strong>{simulationResult.laps_until_pit}</strong> laps.
+            </p>
+          </>
+        ) : (
+          <>
+            <h3>NO STOP BEFORE THE FINISH</h3>
+            <p>The predicted stop falls at the chequered flag, so staying out is the model&apos;s call.</p>
+          </>
+        )}
       </div>
     </div>
   );

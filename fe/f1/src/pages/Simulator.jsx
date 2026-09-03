@@ -12,6 +12,8 @@ import StrategyResult from "../components/simulator/StrategyResult";
 
 import "../styles/simulator.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 const Simulator = () => {
   const [formData, setFormData] = useState({
     race: "Monaco_Grand_Prix",
@@ -40,7 +42,7 @@ const Simulator = () => {
 
       try {
         const response = await fetch(
-          `http://localhost:8000/api/drivers?race=${encodeURIComponent(formData.race)}${lapQuery}`
+          `${API_BASE_URL}/api/drivers?race=${encodeURIComponent(formData.race)}${lapQuery}`
         );
         if (!response.ok) return;
 
@@ -82,7 +84,7 @@ const Simulator = () => {
     const raceCondition = formData.race_condition;
 
     try {
-      const response = await fetch("http://localhost:8000/api/simulate", {
+      const response = await fetch(`${API_BASE_URL}/api/simulate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,6 +97,7 @@ const Simulator = () => {
           compound: formData.compound,
           tyre_age: Number(formData.tyre_age),
           fresh_tyre: formData.fresh_tyre,
+          rain_condition: formData.rain_condition,
           safety_car_active: raceCondition === "safety_car_active",
           vsc_active: raceCondition === "vsc_active",
           yellow_flag: raceCondition === "yellow_flag",
@@ -155,7 +158,13 @@ const Simulator = () => {
               onChange={handleChange}
             />
 
-            <SimulationButton loading={loading} />
+            <SimulationButton loading={loading} disabled={availableDrivers.length === 0} />
+
+            {availableDrivers.length === 0 && (
+              <p className="form-help form-help--error">
+                No drivers are available for this race state. Try another lap or race.
+              </p>
+            )}
 
           </form>
         </div>
