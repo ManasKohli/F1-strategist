@@ -45,5 +45,17 @@ class RaceDataService:
 
         return row.to_dict()
 
+    def get_drivers(self, race: str, lap_number: int | None = None) -> list[str]:
+        rows = self.data[self.data["race"] == race]
+        if lap_number is not None:
+            rows = rows[rows["lap_number"] == lap_number]
+
+        return sorted(
+            rows["driver"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
 
 race_data_service = RaceDataService()

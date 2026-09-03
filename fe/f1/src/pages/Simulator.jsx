@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import SimulatorHero from "../components/simulator/SimulatorHero";
 import RaceStateForm from "../components/simulator/RaceStateForm";
+import driverDirectory from "../components/simulator/driverDirectory";
 import TyreStateForm from "../components/simulator/TyreStateForm";
 import RaceConditions from "../components/simulator/RaceConditions";
 import WeatherConditions from "../components/simulator/WeatherConditions";
 import SimulationButton from "../components/simulator/SimulationButton";
 import StrategyResult from "../components/simulator/StrategyResult";
-import StrategyTimeline from "../components/simulator/StrategyTimeline";
+
 
 import "../styles/simulator.css";
 
@@ -25,8 +26,42 @@ const Simulator = () => {
   });
 
   const [result, setResult] = useState(null);
+  const [resultFormData, setResultFormData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [availableDrivers, setAvailableDrivers] = useState(driverDirectory);
+
+  useEffect(() => {
+    const loadDrivers = async () => {
+      const lapNumber = Number(formData.lap_number);
+      const lapQuery = Number.isInteger(lapNumber) && lapNumber > 0
+        ? `&lap_number=${lapNumber}`
+        : "";
+
+      try {
+        const response = await fetch(
+          `http://localhost:8000/api/drivers?race=${encodeURIComponent(formData.race)}${lapQuery}`
+        );
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const driverCodes = new Set(data.drivers);
+        const driversForRace = driverDirectory.filter(([code]) => driverCodes.has(code));
+
+        setAvailableDrivers(driversForRace);
+        if (!driverCodes.has(formData.driver) && driversForRace.length > 0) {
+          setFormData((previous) => ({
+            ...previous,
+            driver: driversForRace[0][0],
+          }));
+        }
+      } catch {
+        // Keep the local directory available while the backend is offline.
+      }
+    };
+
+    loadDrivers();
+  }, [formData.driver, formData.race, formData.lap_number]);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -42,7 +77,7 @@ const Simulator = () => {
 
     setLoading(true);
     setError("");
-    setResult(null);
+    setResultFormData({ ...formData });
 
     const raceCondition = formData.race_condition;
 
@@ -53,11 +88,13 @@ const Simulator = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...formData,
+          race: formData.race,
+          driver: formData.driver,
           lap_number: Number(formData.lap_number),
           position: Number(formData.position),
+          compound: formData.compound,
           tyre_age: Number(formData.tyre_age),
-          rainfall: formData.rain_condition !== "",
+          fresh_tyre: formData.fresh_tyre,
           safety_car_active: raceCondition === "safety_car_active",
           vsc_active: raceCondition === "vsc_active",
           yellow_flag: raceCondition === "yellow_flag",
@@ -66,15 +103,17 @@ const Simulator = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Simulation request failed.");
+        const responseError = await response.json().catch(() => null);
+        throw new Error(responseError?.detail || "Simulation request failed.");
       }
 
       const data = await response.json();
 
       setResult(data);
-    } catch (err) {
+    } catch (requestError) {
       setError(
-        "Unable to connect to the strategy engine. Make sure the FastAPI backend is running."
+        requestError.message ||
+          "Unable to connect to the strategy engine. Make sure the FastAPI backend is running."
       );
     } finally {
       setLoading(false);
@@ -98,6 +137,7 @@ const Simulator = () => {
             <RaceStateForm
               formData={formData}
               onChange={handleChange}
+              availableDrivers={availableDrivers}
             />
 
             <TyreStateForm
@@ -121,7 +161,12 @@ const Simulator = () => {
         </div>
 
         <div className="simulator-panel simulator-panel--results">
-          <StrategyResult result={result} formData={formData} loading={loading} error={error}/>
+          <StrategyResult
+            result={result}
+            formData={resultFormData}
+            loading={loading}
+            error={error}
+          />
         </div>
       </section>
       

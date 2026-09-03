@@ -1,3 +1,5 @@
+import driverDirectory from "./driverDirectory";
+
 const races = [
   ["Abu_Dhabi_Grand_Prix", "Abu Dhabi Grand Prix"],
   ["Australian_Grand_Prix", "Australian Grand Prix"],
@@ -25,37 +27,7 @@ const races = [
   ["United_States_Grand_Prix", "United States Grand Prix"],
 ];
 
-const drivers = [
-  ["ALB", "Alexander Albon"],
-  ["ALO", "Fernando Alonso"],
-  ["ANT", "Andrea Kimi Antonelli"],
-  ["BEA", "Oliver Bearman"],
-  ["BOR", "Gabriel Bortoleto"],
-  ["BOT", "Valtteri Bottas"],
-  ["COL", "Franco Colapinto"],
-  ["DOO", "Jack Doohan"],
-  ["GAS", "Pierre Gasly"],
-  ["HAD", "Isack Hadjar"],
-  ["HAM", "Lewis Hamilton"],
-  ["HUL", "Nico Hulkenberg"],
-  ["LAW", "Liam Lawson"],
-  ["LEC", "Charles Leclerc"],
-  ["MAG", "Kevin Magnussen"],
-  ["NOR", "Lando Norris"],
-  ["OCO", "Esteban Ocon"],
-  ["PER", "Sergio Perez"],
-  ["PIA", "Oscar Piastri"],
-  ["RIC", "Daniel Ricciardo"],
-  ["RUS", "George Russell"],
-  ["SAI", "Carlos Sainz"],
-  ["SAR", "Logan Sargeant"],
-  ["STR", "Lance Stroll"],
-  ["TSU", "Yuki Tsunoda"],
-  ["VER", "Max Verstappen"],
-  ["ZHO", "Zhou Guanyu"],
-];
-
-const RaceStateForm = ({ formData, onChange }) => {
+const RaceStateForm = ({ formData, onChange, availableDrivers = driverDirectory }) => {
   return (
     <div className="form-section">
       <h3>Race Information</h3>
@@ -85,7 +57,7 @@ const RaceStateForm = ({ formData, onChange }) => {
             value={formData.driver}
             onChange={onChange}
           >
-            {drivers.map(([value, label]) => (
+            {availableDrivers.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
