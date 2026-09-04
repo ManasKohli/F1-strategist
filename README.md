@@ -1,62 +1,114 @@
 # F1 Strategist
 
-F1 Strategist is an end-to-end machine learning application for Formula 1
-pit-stop strategy. Given a driver's current race state, the system predicts
-the number of laps until the next pit stop and presents the recommendation in
-an interactive simulator.
+F1 Strategist is a production-deployed machine learning application for
+predicting Formula 1 pit-stop timing. A user enters a driver's current race
+state and receives a predicted pit window, projected pit lap, and strategy
+summary through an interactive simulator.
 
-The project combines historical race data, feature engineering, model
-training, a FastAPI inference service, and a React frontend. It is designed to
-make the full path from raw motorsport data to a usable ML product visible and
-reproducible.
+The project demonstrates the complete path from motorsport data and feature
+engineering to model training, API design, containerization, and cloud
+deployment.
 
-## Project Status
+## Live Application
 
-| Area | Status |
-| --- | --- |
-| Feature engineering and dataset pipeline | Complete |
-| Random Forest training and evaluation | Complete |
-| FastAPI inference API | Complete |
-| React strategy simulator | Complete |
-| Vercel frontend deployment | Planned |
-| Google Cloud Run backend deployment | Planned |
+- **Frontend:** [f1-strategist-one.vercel.app](https://f1-strategist-one.vercel.app/)
+- **Backend API:** [Cloud Run service](https://f1-strategist-api-6fxa5vsapa-uc.a.run.app)
+- **API health check:** [/api/health](https://f1-strategist-api-6fxa5vsapa-uc.a.run.app/api/health)
 
-## How It Works
+The production API currently reports a loaded model and 25,653 dataset rows.
 
-1. Historical Formula 1 race data is transformed into race-state features.
-2. A Random Forest Regressor learns patterns in pit-stop timing.
-3. The FastAPI service combines historical context with the requested race
-	 state and runs the trained model.
-4. The React simulator renders the predicted pit lap, remaining laps, and
-	 strategy timeline.
+## Product Overview
 
-The current target is `laps_until_pit`. The model is intentionally scoped to
-pit-stop timing and does not yet optimize tyre selection, number of stops, or
-expected finishing position.
+The simulator combines:
 
-## Tech Stack
+- Historical race-state data from Formula 1 sessions
+- Engineered pace, tyre, weather, race-progress, and safety-car features
+- A scikit-learn Random Forest regression model
+- A FastAPI inference service with validation and CORS support
+- A React/Vite interface for exploring race scenarios
 
-- **Modeling:** Python, pandas, scikit-learn, joblib
-- **Data:** FastF1 race data and engineered historical race-state features
-- **Backend:** FastAPI, Pydantic, Uvicorn
-- **Frontend:** React, Vite, React Router
-- **Deployment target:** Vercel for the frontend, Google Cloud Run for the API
+The current prediction target is `laps_until_pit`. The model is intentionally
+scoped to pit-stop timing; it does not claim to optimize tyre compound choice,
+the number of stops, or final finishing position.
+
+## Architecture
+
+```text
+Historical race data
+        |
+        v
+Feature engineering and preprocessing
+        |
+        v
+Random Forest model (.joblib)
+        |
+        v
+FastAPI inference service + training dataset
+        |
+        v
+React/Vite simulator
+```
+
+The frontend is deployed on Vercel and the containerized backend is deployed
+on Google Cloud Run. The frontend receives the API origin through the
+`VITE_API_URL` environment variable. The backend receives the allowed frontend
+origins through `FRONTEND_URLS`.
+
+## Technical Highlights
+
+- End-to-end ML workflow with reproducible dataset and training scripts
+- Explicit model feature contract shared by training and inference
+- Request validation with Pydantic constraints for race state inputs
+- Fallback to the latest earlier race state when an exact lap is unavailable
+- Race-distance-aware predictions that prevent pit laps beyond the finish
+- Rule-based overrides for red flags, safety cars, VSCs, and wet conditions
+- Dockerized FastAPI service with a health endpoint for deployment checks
+- Responsive React simulator with loading, error, and result states
+
+## Model Evaluation
+
+The current baseline was evaluated on 13,193 held-out 2025 race-state samples
+using a model trained on 2024 data:
+
+| Metric | Result |
+| --- | ---: |
+| Mean absolute error (MAE) | 5.97 laps |
+| Root mean squared error (RMSE) | 8.19 laps |
+| R² | 0.279 |
+| Predictions within ±3 laps | 35.06% |
+| Predictions within ±5 laps | 56.02% |
+| Predictions within ±10 laps | 83.65% |
+
+These results are presented as a transparent baseline for future model and
+strategy improvements, not as a claim of race-winning optimization.
 
 ## Repository Structure
 
 ```text
 be/
-	app/              FastAPI application, routes, schemas, and services
-	data/             Raw and processed datasets
-	scripts/          Dataset, training, and evaluation workflow
-	trained_models/   Serialized production model
+  app/
+    main.py                 FastAPI application and CORS configuration
+    routes/                 Health, driver, and simulation endpoints
+    schemas/                Pydantic request and response models
+    services/               Data loading, prediction, and simulation logic
+  data/                     Raw, cached, and processed datasets
+  scripts/                  Dataset, training, and evaluation scripts
+  trained_models/           Serialized model artifact
+  Dockerfile                Cloud Run container definition
 fe/f1/
-	src/              React application and simulator components
+  src/
+    components/             Landing page and simulator components
+    pages/                  Project, model, and simulator pages
+    styles/                 Page and component styles
+  package.json              Frontend scripts and dependencies
+  vite.config.js            Vite configuration
 ```
 
 ## Run Locally
 
 ### Backend
+
+From the repository root:
 
 ```bash
 cd be
@@ -66,18 +118,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-The API is available at `http://localhost:8000`. Useful endpoints:
-
-```text
-GET  /api/health
-GET  /api/drivers?race=Monaco_Grand_Prix&lap_number=25
-POST /api/simulate
-```
-
-`/api/health` reports model readiness and the number of dataset rows loaded by
-the inference service.
+The API runs at `http://localhost:8000`.
 
 ### Frontend
+
+In a second terminal:
 
 ```bash
 cd fe/f1
@@ -85,19 +130,72 @@ npm install
 npm run dev
 ```
 
-The frontend uses `http://localhost:8000` by default. Configure another API
-origin with Vite's environment variable:
+The frontend defaults to `http://localhost:8000` for its API. To use another
+API origin, create `fe/f1/.env.local`:
 
-```bash
-VITE_API_URL=https://your-cloud-run-service.run.app npm run dev
+```env
+VITE_API_URL=http://localhost:8000
 ```
 
-Production checks:
+Production frontend checks:
 
 ```bash
 npm run build
 npm run lint
 ```
+
+## API
+
+### Health
+
+```http
+GET /api/health
+```
+
+Example response:
+
+```json
+{
+  "status": "healthy",
+  "model_loaded": true,
+  "dataset_rows": 25653
+}
+```
+
+### Drivers
+
+```http
+GET /api/drivers?race=Monaco_Grand_Prix&lap_number=25
+```
+
+### Simulate
+
+```http
+POST /api/simulate
+Content-Type: application/json
+```
+
+Example request:
+
+```json
+{
+  "race": "Monaco_Grand_Prix",
+  "driver": "LEC",
+  "lap_number": 25,
+  "position": 3,
+  "compound": "HARD",
+  "tyre_age": 3,
+  "fresh_tyre": false,
+  "rain_condition": "",
+  "safety_car_active": false,
+  "vsc_active": false,
+  "yellow_flag": false,
+  "red_flag_active": false
+}
+```
+
+The response includes `laps_until_pit`, `predicted_pit_lap`, `total_laps`, and
+whether a pit stop is recommended before the finish.
 
 ## Reproduce the ML Workflow
 
@@ -111,74 +209,74 @@ python scripts/train_model.py
 python scripts/evaluate_model.py
 ```
 
-The evaluation script reports MAE, RMSE, and R² on the held-out dataset. The
-trained artifact is saved to `be/trained_models/pit_strategy_model.joblib` and
-loaded by the API at startup.
+The trained artifact is written to:
 
-### Held-Out Performance
+```text
+be/trained_models/pit_strategy_model.joblib
+```
 
-The current model was evaluated on 13,193 held-out 2025 race-state samples
-using a model trained on 2024 data:
-
-| Metric | Result |
-| --- | ---: |
-| Mean absolute error (MAE) | 5.97 laps |
-| Root mean squared error (RMSE) | 8.19 laps |
-| R² | 0.279 |
-| Predictions within ±3 laps | 35.06% |
-| Predictions within ±5 laps | 56.02% |
-| Predictions within ±10 laps | 83.65% |
-
-Because this is a regression problem, traditional classification accuracy is
-not the right measure. The tolerance figures show how often the predicted pit
-timing falls within a practical number of laps of the observed target. These
-results are a transparent baseline for future feature, model, and strategy
-improvements rather than a claim of race-winning optimization.
-
-## Deployment Plan
-
-Deployment is intentionally kept as the next project step rather than being
-represented as complete in this repository.
+## Deployment
 
 ### Frontend: Vercel
 
-1. Import the repository into Vercel.
-2. Set the project root to `fe/f1`.
-3. Use `npm run build` as the build command.
-4. Set the output directory to `dist`.
-5. Add `VITE_API_URL` with the deployed Cloud Run service URL.
+Configure the Vercel project with:
+
+```text
+Root directory: fe/f1
+Build command: npm run build
+Output directory: dist
+Environment: Production
+Variable: VITE_API_URL
+Value: https://f1-strategist-api-6fxa5vsapa-uc.a.run.app
+```
+
+`VITE_API_URL` is a public frontend configuration value, not a secret. Vite
+embeds `VITE_*` variables in the browser bundle, so credentials must never be
+stored in them.
 
 ### Backend: Google Cloud Run
 
-The backend includes a production container definition in `be/Dockerfile`.
-From the repository root, a future deployment can follow this shape:
+From the repository root:
 
 ```bash
-gcloud builds submit --tag gcr.io/PROJECT_ID/f1-strategist-api ./be
+gcloud config set project YOUR_GCP_PROJECT_ID
 gcloud run deploy f1-strategist-api \
-	--image gcr.io/PROJECT_ID/f1-strategist-api \
-	--platform managed \
-	--region REGION \
-	--allow-unauthenticated
+  --source ./be \
+  --region us-central1 \
+  --port 8000 \
+  --memory 1Gi \
+  --allow-unauthenticated
 ```
 
-Before going live, update the backend CORS allowlist with the final Vercel
-origin, deploy the API, then set that Cloud Run URL as `VITE_API_URL` in Vercel.
+The backend uses `1Gi` of memory because loading pandas, the processed dataset,
+and the serialized model exceeds Cloud Run's default `512Mi` limit.
 
-## Engineering Notes
+After the frontend is deployed, configure its origin for backend CORS:
 
-- Inference uses the same feature ordering as the trained model contract.
-- API validation protects against invalid positions, tyre ages, and race laps.
-- Late-race requests use the latest available historical state for the driver
-	when an exact lap is not present in the dataset.
-- Predictions are constrained to the race distance and explicitly report when
-	no pit stop is predicted before the finish.
+```bash
+gcloud run services update f1-strategist-api \
+  --region us-central1 \
+  --update-env-vars FRONTEND_URLS=https://f1-strategist-one.vercel.app
+```
 
-## Future Work
+Multiple origins can be provided as a comma-separated value. Local Vite ports
+remain allowed automatically.
 
-- Add prediction intervals or calibrated uncertainty.
-- Track model versions and evaluation metrics in the UI.
-- Compare the model against simple strategy baselines.
-- Expand from pit timing to compound choice, pit windows, and expected race
-	outcome.
-- Add automated backend tests and CI checks.
+## Project Status
+
+| Area | Status |
+| --- | --- |
+| Data pipeline and feature engineering | Complete |
+| Model training and evaluation | Complete |
+| FastAPI inference API | Complete |
+| React simulator | Complete |
+| Vercel frontend deployment | Complete |
+| Google Cloud Run backend deployment | Complete |
+
+## Next Iterations
+
+- Add prediction intervals or calibrated uncertainty
+- Compare model predictions with simple strategy baselines
+- Expand from pit timing to compound choice and pit-window optimization
+- Track model versions and evaluation metrics in the UI
+- Add automated backend integration tests and CI checks
